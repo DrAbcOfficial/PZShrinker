@@ -16,12 +16,6 @@ internal class Shrinker(int min, int max, float ratio)
         long maxPixels = (long)max * max;
         long newPixels = (long)newWidth * newHeight;
 
-        if(newPixels > originalHeight * originalWidth)
-        {
-            newWidth = originalWidth;
-            newHeight = originalHeight;
-            return;
-        }
         if(originalWidth < min || originalHeight < min)
         {
             newWidth = originalWidth;

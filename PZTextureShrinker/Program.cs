@@ -77,6 +77,11 @@ if (parseResult.Errors.Count == 0 &&
         Console.Error.WriteLine($"The path '{path}' does not exist.".Pastel(ConsoleColor.Red));
         return 2;
     }
+    if(maxSize < 0 || minSize < 0 || scaleratio < 0)
+    {
+        Console.Error.WriteLine($"Negetive?".Pastel(ConsoleColor.Red));
+        return 3;
+    }
     IEnumerable<string> pending_textures = [];
     IEnumerable<string> pending_packs = [];
     var mods = di.GetDirectories();
