@@ -15,6 +15,19 @@ internal class Shrinker(int min, int max, float ratio)
         newHeight = (int)Math.Round(originalHeight * ratio);
         long maxPixels = (long)max * max;
         long newPixels = (long)newWidth * newHeight;
+
+        if(newPixels > originalHeight * originalWidth)
+        {
+            newWidth = originalWidth;
+            newHeight = originalHeight;
+            return;
+        }
+        if(originalWidth < min || originalHeight < min)
+        {
+            newWidth = originalWidth;
+            newHeight = originalHeight;
+            return;
+        }
         // Check if new pixels exceed max*max, if so scale down with longest side as max
         if (newPixels > maxPixels)
         {

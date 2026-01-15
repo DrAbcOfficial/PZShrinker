@@ -7,7 +7,7 @@ using System.CommandLine;
 using System.CommandLine.Parsing;
 
 //ceshi
-args = ["D:\\SteamLibrary\\steamapps\\workshop\\content\\108600", "-max", "256", "-min", "64", "-mt"];
+args = ["D:\\SteamLibrary\\steamapps\\workshop\\content\\108600", "-max", "256", "-min", "64", "-all"];
 
 
 // 创建根命令
