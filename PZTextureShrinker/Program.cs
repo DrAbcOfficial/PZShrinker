@@ -1,9 +1,8 @@
 ﻿using Assimp;
-using System;
-using System.CommandLine;
-using System.CommandLine.Parsing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
+using System.CommandLine;
+using System.CommandLine.Parsing;
 
 //ceshi
 args = ["D:\\SteamLibrary\\steamapps\\workshop\\content\\108600", "-max", "512", "-min", "128", "-mto"];
@@ -35,6 +34,8 @@ var modelTextureOnlyOption = new Option<bool>("--model-texture-only", "-mto")
     Description = "Only process model textures."
 };
 
+var validExtensions = new[] { ".png" };
+
 rootCommand.Add(pathArgument);
 rootCommand.Add(maxSizeOption);
 rootCommand.Add(minSizeOption);
@@ -53,7 +54,7 @@ if (parseResult.Errors.Count == 0 &&
         Console.Error.WriteLine($"The path '{path}' does not exist.");
         return 2;
     }
-    List<string> pending_textures = [];
+    IEnumerable<string> pending_textures = Enumerable.Empty<string>();
     using var ass_importer = new AssimpContext();
     var mods = di.GetDirectories();
     Console.WriteLine($"Found {mods.Length} mods, processing");
@@ -71,8 +72,8 @@ if (parseResult.Errors.Count == 0 &&
             {
                 var fbxFiles = item.EnumerateFiles("*.fbx", SearchOption.AllDirectories);
                 var xFiles = item.EnumerateFiles("*.x", SearchOption.AllDirectories);
-                var modelFiles = fbxFiles.Concat(xFiles);
-                Console.WriteLine($"Processing mod '{item.Name}', found {modelFiles.Count()} models");
+                var modelFiles = fbxFiles.Concat(xFiles).ToArray();
+                Console.WriteLine($"Processing mod '{item.Name}', found {modelFiles.Length} models");
                 foreach (var model in modelFiles)
                 {
                     try
@@ -86,29 +87,25 @@ if (parseResult.Errors.Count == 0 &&
                             foreach (var slot in mat_slots)
                             {
                                 string tex = slot.FilePath;
-                            if (Path.IsPathFullyQualified(tex))
-                            {
-                                Console.Error.WriteLine($"Texture path {tex} is fully qualified! this is a stupid erorr for mod, try to use relative path");
-                                tex = Path.GetFileName(tex);
-                            }
-                            
-                            // Extract base name without extension
-                            string baseName = Path.GetFileNameWithoutExtension(tex);
-                            // Define valid image extensions
-                            var validExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga" };
-                            
-                            // Find all files with matching base name and valid image extensions
-                            var matchingFiles = item
-                                .EnumerateFiles($"{baseName}.*", SearchOption.AllDirectories)
-                                .Where(file => validExtensions.Contains(file.Extension.ToLower()))
-                                .Select(file => file.FullName)
-                                .ToList();
-                            
-                            pending_textures.AddRange(matchingFiles);
+                                if (Path.IsPathFullyQualified(tex))
+                                {
+                                    Console.Error.WriteLine($"Texture path {tex} is fully qualified! this is a stupid erorr for mod, try to use relative path");
+                                    tex = Path.GetFileName(tex);
+                                }
+
+                                // Extract base name without extension
+                                string baseName = Path.GetFileNameWithoutExtension(tex);
+                                // Find all files with matching base name and valid image extensions
+                                var matchingFiles = item
+                                    .EnumerateFiles($"{baseName}.*", SearchOption.AllDirectories)
+                                    .Where(file => validExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+                                    .Select(file => file.FullName);
+
+                                pending_textures = pending_textures.Concat(matchingFiles);
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         Console.Error.WriteLine($"Meet a exception when parsing model {model.Name}");
                         continue;
@@ -118,35 +115,37 @@ if (parseResult.Errors.Count == 0 &&
             else
             {
                 // Process all texture files
-                var validExtensions = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tga" };
-                List<string> textureFiles = [];
-                
+                IEnumerable<string> textureFiles = Enumerable.Empty<string>();
                 foreach (var ext in validExtensions)
                 {
-                    textureFiles.AddRange(item.EnumerateFiles(ext, SearchOption.AllDirectories)
+                    textureFiles = textureFiles.Concat(item.EnumerateFiles("*" + ext, SearchOption.AllDirectories)
                         .Select(file => file.FullName));
                 }
-                
-                Console.WriteLine($"Processing mod '{item.Name}', found {textureFiles.Count} textures");
-                pending_textures.AddRange(textureFiles);
+
+                // 计算纹理文件数量时使用ToArray避免多次枚举
+                var textureFilesArray = textureFiles.ToArray();
+                Console.WriteLine($"Processing mod '{item.Name}', found {textureFilesArray.Length} textures");
+                pending_textures = pending_textures.Concat(textureFilesArray);
             }
         }
     }
-    pending_textures = [.. pending_textures.Distinct()];
-    Console.WriteLine($"Found {pending_textures.Count} unique textures to process");
-    
+    pending_textures = pending_textures.Distinct();
+    // 使用ToArray避免多次枚举
+    var uniqueTextures = pending_textures.ToArray();
+    Console.WriteLine($"Found {uniqueTextures.Length} unique textures to process");
+
     int processedCount = 0;
     int skippedCount = 0;
-    
-    foreach (var texturePath in pending_textures)
+
+    foreach (var texturePath in uniqueTextures)
     {
         try
         {
             using var image = Image.Load(texturePath);
-            
+
             int originalWidth = image.Width;
             int originalHeight = image.Height;
-            
+
             // Check if the image needs resizing
             if (originalWidth <= minSize && originalHeight <= minSize)
             {
@@ -154,7 +153,7 @@ if (parseResult.Errors.Count == 0 &&
                 skippedCount++;
                 continue;
             }
-            
+
             // Calculate new dimensions while maintaining aspect ratio
             int newWidth, newHeight;
             if (originalWidth > originalHeight)
@@ -183,19 +182,19 @@ if (parseResult.Errors.Count == 0 &&
                     newHeight = originalHeight;
                 }
             }
-            
+
             // Ensure minimum size
             newWidth = Math.Max(newWidth, minSize);
             newHeight = Math.Max(newHeight, minSize);
-            
+
             // Only resize if dimensions have changed
             if (newWidth != originalWidth || newHeight != originalHeight)
             {
                 Console.WriteLine($"Resizing {Path.GetFileName(texturePath)} from {originalWidth}x{originalHeight} to {newWidth}x{newHeight}");
-                
+
                 // Resize the image using high quality resampling
                 image.Mutate(x => x.Resize(newWidth, newHeight, KnownResamplers.Lanczos3));
-                
+
                 // Save the resized image, overwriting the original
                 image.Save(texturePath);
                 processedCount++;
@@ -213,7 +212,7 @@ if (parseResult.Errors.Count == 0 &&
             continue;
         }
     }
-    
+
     Console.WriteLine($"\nProcessing complete!");
     Console.WriteLine($"Resized: {processedCount} textures");
     Console.WriteLine($"Skipped: {skippedCount} textures");
