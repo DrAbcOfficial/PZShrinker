@@ -5,9 +5,12 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using System.CommandLine;
 using System.CommandLine.Parsing;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 //ceshi
-args = ["D:\\SteamLibrary\\steamapps\\workshop\\content\\108600", "-max", "256", "-min", "64", "-all"];
+args = ["D:\\SteamLibrary\\steamapps\\workshop\\content\\108600", "-max", "256", "-min", "64", "-mt"];
 
 
 // 创建根命令
@@ -77,7 +80,6 @@ if (parseResult.Errors.Count == 0 &&
     }
     IEnumerable<string> pending_textures = [];
     IEnumerable<string> pending_packs = [];
-    using var ass_importer = new AssimpContext();
     var mods = di.GetDirectories();
     Console.WriteLine($"Found {mods.Length} mods, processing");
     foreach (var m in mods)
@@ -88,8 +90,17 @@ if (parseResult.Errors.Count == 0 &&
             Console.Error.WriteLine($"Corrupted mod {m}, has no any submod".Pastel(ConsoleColor.Red));
             continue;
         }
-        foreach (var item in submods.GetDirectories())
+        var modinfos = submods.EnumerateFiles("mod.info", SearchOption.AllDirectories)
+            .Select(m => Path.GetDirectoryName(m.FullName)).ToArray();
+
+        foreach (var mpp in modinfos)
         {
+            if(mpp == null)
+                continue;
+            DirectoryInfo item = new(mpp);
+            if(!item.Exists)
+                continue;
+
             if(allTexture)
             {
                 pending_textures = pending_textures.Concat(item.EnumerateFiles("*.png", SearchOption.AllDirectories)
@@ -97,48 +108,50 @@ if (parseResult.Errors.Count == 0 &&
             }
             else if (modelTexture)
             {
-                var fbxFiles = item.EnumerateFiles("*.fbx", SearchOption.AllDirectories);
-                var xFiles = item.EnumerateFiles("*.x", SearchOption.AllDirectories);
-                var modelFiles = fbxFiles.Concat(xFiles).ToArray();
-                Console.WriteLine($"Processing mod '{item.Name}', found {modelFiles.Length} models");
-                foreach (var model in modelFiles)
+                var txtFiles = item.EnumerateFiles("*.txt", searchOption: SearchOption.AllDirectories);
+                foreach (var txtFile in txtFiles)
                 {
-                    try
+                    string file = File.ReadAllText(txtFile.FullName);
+                    Regex regex = TextureRegex();
+                    var regexResult = regex.Matches(file);
+
+                    
+                    foreach(Match match  in regexResult)
                     {
-                        var ass_models = ass_importer.ImportFile(model.FullName, PostProcessSteps.None);
-                        if (!ass_models.HasMaterials)
-                            continue;
-                        foreach (var mat in ass_models.Materials)
+                        string? value = match.Groups[1].Success ? match.Groups[1].Value :
+                                       match.Groups[2].Success ? match.Groups[2].Value :
+                                       match.Groups[3].Success ? match.Groups[3].Value :
+                                       null;
+                        if(value != null)
                         {
-                            var mat_slots = mat.GetAllMaterialTextures();
-                            foreach (var slot in mat_slots)
-                            {
-                                string tex = slot.FilePath;
-                                if (Path.IsPathFullyQualified(tex))
-                                {
-                                    Console.Error.WriteLine($"Texture path {tex} is fully qualified! this is a stupid erorr for mod, try to use relative path".Pastel(ConsoleColor.Yellow));
-                                    tex = Path.GetFileName(tex);
-                                }
-
-                                // Extract base name without extension
-                                string baseName = Path.GetFileNameWithoutExtension(tex);
-                                // Find all files with matching base name and valid image extensions
-                                var matchingFiles = item
-                                    .EnumerateFiles($"{baseName}.*", SearchOption.AllDirectories)
-                                    .Where(file => string.Compare(file.Extension, ".png", true) == 0)
-                                    .Select(file => file.FullName);
-
-                                pending_textures = pending_textures.Concat(matchingFiles);
-                            }
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        Console.Error.WriteLine($"Meet a exception when parsing model {model.Name}".Pastel(ConsoleColor.Red));
-                        continue;
+                            var p = Path.Combine(mpp, "media/textures", value) + ".png";
+                            if(File.Exists(p))
+                                pending_textures = pending_textures.Append(p);
+                        }   
                     }
                 }
-                
+
+                var xmlFiles = item.EnumerateFiles("*.xml", SearchOption.AllDirectories);
+                foreach(var xmlFile in xmlFiles)
+                {
+                    XDocument doc = XDocument.Load(xmlFile.FullName);
+                    var texture_choices = from tc in doc.Descendants("textureChoices")
+                                          select new
+                                          {
+                                              tc.Value
+                                          };
+                    var base_textures = from tc in doc.Descendants("m_BaseTextures")
+                                        select new
+                                        {
+                                            tc.Value
+                                        };
+                    foreach(var t in texture_choices.Concat(base_textures))
+                    {
+                        var p = Path.Combine(mpp, "media/textures", t.Value) + ".png";
+                        if (File.Exists(p))
+                            pending_textures = pending_textures.Append(p);
+                    }
+                }
             }
             if (packTexture)
             {
@@ -168,3 +181,9 @@ foreach (ParseError parseError in parseResult.Errors)
     Console.Error.WriteLine(parseError.Message.Pastel(ConsoleColor.Red));
 }
 return 1;
+
+partial class Program
+{
+    [GeneratedRegex("texture\\s*=\\s*(?:\"([^\"\\r\\n]*?)\"|'([^'\\r\\n]*?)'|([^,\\r\\n]+))")]
+    private static partial Regex TextureRegex();
+}
