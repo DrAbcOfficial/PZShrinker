@@ -45,6 +45,11 @@ var packTextureOption = new Option<bool>("--tiles-pack", "-tp")
     DefaultValueFactory = _ => false,
     Description = "process tiles textures."
 };
+var allTextureOption = new Option<bool>("--all-texture", "-all")
+{
+    DefaultValueFactory = _ => false,
+    Description = "process all png"
+};
 
 rootCommand.Add(pathArgument);
 rootCommand.Add(maxSizeOption);
@@ -52,6 +57,7 @@ rootCommand.Add(minSizeOption);
 rootCommand.Add(scaleratioOption);
 rootCommand.Add(modelTextureOption);
 rootCommand.Add(packTextureOption);
+rootCommand.Add(allTextureOption);
 
 ParseResult parseResult = rootCommand.Parse(args);
 if (parseResult.Errors.Count == 0 &&
@@ -60,6 +66,7 @@ if (parseResult.Errors.Count == 0 &&
     parseResult.GetValue(minSizeOption) is int minSize &&
     parseResult.GetValue(scaleratioOption) is float scaleratio &&
     parseResult.GetValue(packTextureOption) is bool packTexture &&
+    parseResult.GetValue(allTextureOption) is bool allTexture &&
     parseResult.GetValue(modelTextureOption) is bool modelTexture)
 {
     var di = new DirectoryInfo(path);
@@ -83,7 +90,12 @@ if (parseResult.Errors.Count == 0 &&
         }
         foreach (var item in submods.GetDirectories())
         {
-            if (modelTexture)
+            if(allTexture)
+            {
+                pending_textures = pending_textures.Concat(item.EnumerateFiles("*.png", SearchOption.AllDirectories)
+                    .Select(file => file.FullName));
+            }
+            else if (modelTexture)
             {
                 var fbxFiles = item.EnumerateFiles("*.fbx", SearchOption.AllDirectories);
                 var xFiles = item.EnumerateFiles("*.x", SearchOption.AllDirectories);
@@ -126,23 +138,26 @@ if (parseResult.Errors.Count == 0 &&
                         continue;
                     }
                 }
-                pending_textures = pending_textures.Distinct();
-                Console.WriteLine($"Found {pending_textures.Count()} unique textures to process");
+                
             }
             if (packTexture)
             {
-                pending_packs = item.EnumerateFiles("*.pack", SearchOption.AllDirectories)
-                    .Select(file => file.FullName)
-                    .Distinct();
-                Console.WriteLine($"Found {pending_packs.Count()} unique textures to process");
+                pending_packs = pending_packs.Concat(item.EnumerateFiles("*.pack", SearchOption.AllDirectories)
+                    .Select(file => file.FullName));
             }
         }
     }
+
+    string[] unique_texture = [.. pending_textures.Distinct()];
+    Console.WriteLine($"Found {unique_texture.Length} unique textures to process");
+    string[] unique_packs = [.. pending_packs.Distinct()];
+    Console.WriteLine($"Found {unique_packs.Length} unique textures to process");
+
     var sk = new Shrinker(minSize, maxSize, scaleratio);
-    if(modelTexture)
-        sk.ShrinkTexture([.. pending_textures]);
-    if (packTexture)
-        sk.ShrinkPack([.. pending_packs]);
+    if(unique_texture.Length > 0)
+        sk.ShrinkTexture(unique_texture);
+    if (unique_packs.Length > 0)
+        sk.ShrinkPack(unique_packs);
 
     Console.WriteLine($"\nProcessing complete!".Pastel(ConsoleColor.Green));
     return 0;
