@@ -1,5 +1,6 @@
 ﻿using Assimp;
 using Pastel;
+using PZTextureShrinker;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using System.CommandLine;
@@ -37,16 +38,20 @@ var scaleratioOption = new Option<float>("--scale-ratio", "-sr")
 var modelTextureOption = new Option<bool>("--model-texture", "-mt")
 {
     DefaultValueFactory = _ => false,
-    Description = "Only process model textures."
+    Description = "process model textures."
 };
-
-var validExtensions = new[] { ".png" };
+var packTextureOption = new Option<bool>("--tiles-pack", "-tp")
+{
+    DefaultValueFactory = _ => false,
+    Description = "process tiles textures."
+};
 
 rootCommand.Add(pathArgument);
 rootCommand.Add(maxSizeOption);
 rootCommand.Add(minSizeOption);
 rootCommand.Add(scaleratioOption);
 rootCommand.Add(modelTextureOption);
+rootCommand.Add(packTextureOption);
 
 ParseResult parseResult = rootCommand.Parse(args);
 if (parseResult.Errors.Count == 0 &&
@@ -54,6 +59,7 @@ if (parseResult.Errors.Count == 0 &&
     parseResult.GetValue(maxSizeOption) is int maxSize &&
     parseResult.GetValue(minSizeOption) is int minSize &&
     parseResult.GetValue(scaleratioOption) is float scaleratio &&
+    parseResult.GetValue(packTextureOption) is bool packTexture &&
     parseResult.GetValue(modelTextureOption) is bool modelTexture)
 {
     var di = new DirectoryInfo(path);
@@ -62,7 +68,8 @@ if (parseResult.Errors.Count == 0 &&
         Console.Error.WriteLine($"The path '{path}' does not exist.".Pastel(ConsoleColor.Red));
         return 2;
     }
-    IEnumerable<string> pending_textures = Enumerable.Empty<string>();
+    IEnumerable<string> pending_textures = [];
+    IEnumerable<string> pending_packs = [];
     using var ass_importer = new AssimpContext();
     var mods = di.GetDirectories();
     Console.WriteLine($"Found {mods.Length} mods, processing");
@@ -106,7 +113,7 @@ if (parseResult.Errors.Count == 0 &&
                                 // Find all files with matching base name and valid image extensions
                                 var matchingFiles = item
                                     .EnumerateFiles($"{baseName}.*", SearchOption.AllDirectories)
-                                    .Where(file => validExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+                                    .Where(file => string.Compare(file.Extension, ".png", true) == 0)
                                     .Select(file => file.FullName);
 
                                 pending_textures = pending_textures.Concat(matchingFiles);
@@ -119,97 +126,25 @@ if (parseResult.Errors.Count == 0 &&
                         continue;
                     }
                 }
+                pending_textures = pending_textures.Distinct();
+                Console.WriteLine($"Found {pending_textures.Count()} unique textures to process");
+            }
+            if (packTexture)
+            {
+                pending_packs = item.EnumerateFiles("*.pack", SearchOption.AllDirectories)
+                    .Select(file => file.FullName)
+                    .Distinct();
+                Console.WriteLine($"Found {pending_packs.Count()} unique textures to process");
             }
         }
     }
-    pending_textures = pending_textures.Distinct();
-    // 使用ToArray避免多次枚举
-    var uniqueTextures = pending_textures.ToArray();
-    Console.WriteLine($"Found {uniqueTextures.Length} unique textures to process");
-
-    int processedCount = 0;
-    int skippedCount = 0;
-
-    foreach (var texturePath in uniqueTextures)
-    {
-        try
-        {
-            using var image = Image.Load(texturePath);
-
-            int originalWidth = image.Width;
-            int originalHeight = image.Height;
-
-            // Calculate new dimensions using scale_ratio first
-            int newWidth = (int)Math.Round(originalWidth * scaleratio);
-            int newHeight = (int)Math.Round(originalHeight * scaleratio);
-            long maxPixels = (long)maxSize * maxSize;
-            long minPixels = (long)minSize * minSize;
-            long newPixels = (long)newWidth * newHeight;
-
-            // Check if new pixels exceed max*max, if so scale down with longest side as max
-            if (newPixels > maxPixels)
-            {
-                if (newWidth > newHeight)
-                {
-                    newWidth = maxSize;
-                    newHeight = (int)Math.Round((double)originalHeight * maxSize / originalWidth);
-                }
-                else
-                {
-                    newHeight = maxSize;
-                    newWidth = (int)Math.Round((double)originalWidth * maxSize / originalHeight);
-                }
-                newPixels = (long)newWidth * newHeight;
-            }
-
-            // Check if new pixels are less than min*min, if so scale up with shortest side as min
-            if (newPixels < minPixels)
-            {
-                if (newWidth < newHeight)
-                {
-                    newWidth = minSize;
-                    newHeight = (int)Math.Round((double)originalHeight * minSize / originalWidth);
-                }
-                else
-                {
-                    newHeight = minSize;
-                    newWidth = (int)Math.Round((double)originalWidth * minSize / originalHeight);
-                }
-            }
-
-            // Ensure new dimensions are at least 1x1
-            newWidth = Math.Max(newWidth, 1);
-            newHeight = Math.Max(newHeight, 1);
-
-            // Only resize if dimensions have changed
-            if (newWidth != originalWidth || newHeight != originalHeight)
-            {
-                Console.WriteLine($"Resizing {Path.GetFileName(texturePath)} from {originalWidth}x{originalHeight} to {newWidth}x{newHeight}".Pastel(ConsoleColor.Green));
-
-                // Resize the image using high quality resampling
-                image.Mutate(x => x.Resize(newWidth, newHeight, KnownResamplers.Lanczos3));
-
-                // Save the resized image, overwriting the original
-                image.Save(texturePath);
-                processedCount++;
-            }
-            else
-            {
-                Console.WriteLine($"Skipping {Path.GetFileName(texturePath)} (no resizing needed: {originalWidth}x{originalHeight})");
-                skippedCount++;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Error processing {texturePath}: {ex.Message}".Pastel(ConsoleColor.Red));
-            skippedCount++;
-            continue;
-        }
-    }
+    var sk = new Shrinker(minSize, maxSize, scaleratio);
+    if(modelTexture)
+        sk.ShrinkTexture([.. pending_textures]);
+    if (packTexture)
+        sk.ShrinkPack([.. pending_packs]);
 
     Console.WriteLine($"\nProcessing complete!".Pastel(ConsoleColor.Green));
-    Console.WriteLine($"Resized: {processedCount} textures");
-    Console.WriteLine($"Skipped: {skippedCount} textures");
     return 0;
 }
 
