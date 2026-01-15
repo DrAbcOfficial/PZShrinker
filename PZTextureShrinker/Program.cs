@@ -1,19 +1,11 @@
-﻿using Assimp;
-using Pastel;
+﻿using Pastel;
 using PZTextureShrinker;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 using System.CommandLine;
 using System.CommandLine.Parsing;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
-//ceshi
-args = ["D:\\SteamLibrary\\steamapps\\workshop\\content\\108600", "-max", "256", "-min", "64", "-mt"];
-
-
-// 创建根命令
 var rootCommand = new RootCommand("Project zomboid texture size shrinker");
 
 var pathArgument = new Argument<string>("path")
@@ -38,6 +30,11 @@ var scaleratioOption = new Option<float>("--scale-ratio", "-sr")
     Description = "The scale ratio"
 };
 
+var iconTextureOption = new Option<bool>("--icon-texture", "-it")
+{
+    DefaultValueFactory = _ => false,
+    Description = "process icon texture"
+};
 var modelTextureOption = new Option<bool>("--model-texture", "-mt")
 {
     DefaultValueFactory = _ => false,
@@ -60,6 +57,7 @@ rootCommand.Add(minSizeOption);
 rootCommand.Add(scaleratioOption);
 rootCommand.Add(modelTextureOption);
 rootCommand.Add(packTextureOption);
+rootCommand.Add(iconTextureOption);
 rootCommand.Add(allTextureOption);
 
 ParseResult parseResult = rootCommand.Parse(args);
@@ -69,6 +67,7 @@ if (parseResult.Errors.Count == 0 &&
     parseResult.GetValue(minSizeOption) is int minSize &&
     parseResult.GetValue(scaleratioOption) is float scaleratio &&
     parseResult.GetValue(packTextureOption) is bool packTexture &&
+    parseResult.GetValue(iconTextureOption) is bool iconTexture &&
     parseResult.GetValue(allTextureOption) is bool allTexture &&
     parseResult.GetValue(modelTextureOption) is bool modelTexture)
 {
@@ -95,61 +94,96 @@ if (parseResult.Errors.Count == 0 &&
 
         foreach (var mpp in modinfos)
         {
-            if(mpp == null)
+            if (mpp == null)
                 continue;
             DirectoryInfo item = new(mpp);
-            if(!item.Exists)
+            if (!item.Exists)
                 continue;
 
-            if(allTexture)
+            if (allTexture)
             {
                 pending_textures = pending_textures.Concat(item.EnumerateFiles("*.png", SearchOption.AllDirectories)
                     .Select(file => file.FullName));
+                break;
             }
-            else if (modelTexture)
+            if(iconTexture || modelTexture)
             {
                 var txtFiles = item.EnumerateFiles("*.txt", searchOption: SearchOption.AllDirectories);
                 foreach (var txtFile in txtFiles)
                 {
+                    Console.WriteLine($"Start parsing TXT {txtFile}");
+
                     string file = File.ReadAllText(txtFile.FullName);
-                    Regex regex = TextureRegex();
-                    var regexResult = regex.Matches(file);
 
-                    
-                    foreach(Match match  in regexResult)
+                    if (modelTexture)
                     {
-                        string? value = match.Groups[1].Success ? match.Groups[1].Value :
-                                       match.Groups[2].Success ? match.Groups[2].Value :
-                                       match.Groups[3].Success ? match.Groups[3].Value :
-                                       null;
-                        if(value != null)
+                        Regex regex = TextureRegex();
+                        var regexResult = regex.Matches(file);
+                        foreach (Match match in regexResult)
                         {
-                            var p = Path.Combine(mpp, "media/textures", value) + ".png";
-                            if(File.Exists(p))
-                                pending_textures = pending_textures.Append(p);
-                        }   
+                            string? value = match.Groups[1].Success ? match.Groups[1].Value :
+                                           match.Groups[2].Success ? match.Groups[2].Value :
+                                           match.Groups[3].Success ? match.Groups[3].Value :
+                                           null;
+                            if (value != null)
+                            {
+                                var p = Path.Combine(mpp, "media/textures", value) + ".png";
+                                if (File.Exists(p))
+                                    pending_textures = pending_textures.Append(p);
+                            }
+                        }
                     }
-                }
-
-                var xmlFiles = item.EnumerateFiles("*.xml", SearchOption.AllDirectories);
-                foreach(var xmlFile in xmlFiles)
-                {
-                    XDocument doc = XDocument.Load(xmlFile.FullName);
-                    var texture_choices = from tc in doc.Descendants("textureChoices")
-                                          select new
-                                          {
-                                              tc.Value
-                                          };
-                    var base_textures = from tc in doc.Descendants("m_BaseTextures")
-                                        select new
-                                        {
-                                            tc.Value
-                                        };
-                    foreach(var t in texture_choices.Concat(base_textures))
+                    if (iconTexture)
                     {
-                        var p = Path.Combine(mpp, "media/textures", t.Value) + ".png";
-                        if (File.Exists(p))
-                            pending_textures = pending_textures.Append(p);
+                        Regex regex = IconRegex();
+                        var regexResult = regex.Matches(file);
+                        foreach (Match match in regexResult)
+                        {
+                            string? value = match.Groups[1].Success ? match.Groups[1].Value :
+                                           match.Groups[2].Success ? match.Groups[2].Value :
+                                           match.Groups[3].Success ? match.Groups[3].Value :
+                                           null;
+                            if (value != null)
+                            {
+                                var p = Path.Combine(mpp, "media/textures", ($"Item_{value}")) + ".png";
+                                if (File.Exists(p))
+                                    pending_textures = pending_textures.Append(p);
+                            }
+                        }
+                    }
+                    
+                }
+            }
+            if (modelTexture)
+            {
+                var xmlFiles = item.EnumerateFiles("*.xml", SearchOption.AllDirectories);
+                foreach (var xmlFile in xmlFiles)
+                {
+                    Console.WriteLine($"Start parsing XML {xmlFile}");
+                    try
+                    {
+                        XDocument doc = XDocument.Load(xmlFile.FullName);
+                        var texture_choices = from tc in doc.Descendants("textureChoices")
+                                              select new
+                                              {
+                                                  tc.Value
+                                              };
+                        var base_textures = from tc in doc.Descendants("m_BaseTextures")
+                                            select new
+                                            {
+                                                tc.Value
+                                            };
+                        foreach (var t in texture_choices.Concat(base_textures))
+                        {
+                            var p = Path.Combine(mpp, "media/textures", t.Value) + ".png";
+                            if (File.Exists(p))
+                                pending_textures = pending_textures.Append(p);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        Console.Error.WriteLine($"{xmlFile} is not a valid XML, this is a stupid error for mod.".Pastel(ConsoleColor.Red));
+                        continue;
                     }
                 }
             }
@@ -167,7 +201,7 @@ if (parseResult.Errors.Count == 0 &&
     Console.WriteLine($"Found {unique_packs.Length} unique textures to process");
 
     var sk = new Shrinker(minSize, maxSize, scaleratio);
-    if(unique_texture.Length > 0)
+    if (unique_texture.Length > 0)
         sk.ShrinkTexture(unique_texture);
     if (unique_packs.Length > 0)
         sk.ShrinkPack(unique_packs);
@@ -186,4 +220,7 @@ partial class Program
 {
     [GeneratedRegex("texture\\s*=\\s*(?:\"([^\"\\r\\n]*?)\"|'([^'\\r\\n]*?)'|([^,\\r\\n]+))")]
     private static partial Regex TextureRegex();
+
+    [GeneratedRegex("Icon\\s*=\\s*(?:\"([^\"\\r\\n]*?)\"|'([^'\\r\\n]*?)'|([^,\\r\\n]+))")]
+    private static partial Regex IconRegex();
 }
