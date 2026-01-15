@@ -1,6 +1,5 @@
 using Pastel;
 using PZTextureShrinker;
-using SixLabors.ImageSharp;
 using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.Text.RegularExpressions;
@@ -77,7 +76,7 @@ if (parseResult.Errors.Count == 0 &&
         Console.Error.WriteLine($"The path '{path}' does not exist.".Pastel(ConsoleColor.Red));
         return 2;
     }
-    if(maxSize < 0 || minSize < 0 || scaleratio < 0)
+    if (maxSize < 0 || minSize < 0 || scaleratio < 0)
     {
         Console.Error.WriteLine($"Negetive?".Pastel(ConsoleColor.Red));
         return 3;
@@ -111,7 +110,7 @@ if (parseResult.Errors.Count == 0 &&
                     .Select(file => file.FullName));
                 break;
             }
-            if(iconTexture || modelTexture)
+            if (iconTexture || modelTexture)
             {
                 var txtFiles = item.EnumerateFiles("*.txt", searchOption: SearchOption.AllDirectories);
                 foreach (var txtFile in txtFiles)
@@ -156,7 +155,7 @@ if (parseResult.Errors.Count == 0 &&
                             }
                         }
                     }
-                    
+
                 }
             }
             if (modelTexture)

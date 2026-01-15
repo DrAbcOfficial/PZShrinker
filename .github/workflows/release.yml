@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*  # 当有v开头的tag push时触发
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build project
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish project
+        run: dotnet publish PZTextureShrinker/PZTextureShrinker.csproj --configuration Release --no-build --output ./publish
+
+      - name: Create release package
+        run: |
+          cd ./publish
+          Compress-Archive -Path * -DestinationPath ../PZTextureShrinker_${{ github.ref_name }}.zip
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./PZTextureShrinker_${{ github.ref_name }}.zip
+          asset_name: PZTextureShrinker_${{ github.ref_name }}.zip
+          asset_content_type: application/zip
