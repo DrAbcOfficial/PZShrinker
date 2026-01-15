@@ -27,6 +27,11 @@ var minSizeOption = new Option<int>("--min-size", "-min")
     DefaultValueFactory = _ => 64,
     Description = "The minimum size of the texture. Default is 64."
 };
+var scaleratioOption = new Option<float>("--scale-ratio", "-sr")
+{
+    DefaultValueFactory = _ => 0.25f,
+    Description = "The scale ratio"
+};
 
 var modelTextureOnlyOption = new Option<bool>("--model-texture-only", "-mto")
 {
@@ -39,6 +44,7 @@ var validExtensions = new[] { ".png" };
 rootCommand.Add(pathArgument);
 rootCommand.Add(maxSizeOption);
 rootCommand.Add(minSizeOption);
+rootCommand.Add(scaleratioOption);
 rootCommand.Add(modelTextureOnlyOption);
 
 ParseResult parseResult = rootCommand.Parse(args);
@@ -46,6 +52,7 @@ if (parseResult.Errors.Count == 0 &&
     parseResult.GetValue(pathArgument) is string path &&
     parseResult.GetValue(maxSizeOption) is int maxSize &&
     parseResult.GetValue(minSizeOption) is int minSize &&
+    parseResult.GetValue(scaleratioOption) is float scaleratio &&
     parseResult.GetValue(modelTextureOnlyOption) is bool modelTextureOnly)
 {
     var di = new DirectoryInfo(path);
