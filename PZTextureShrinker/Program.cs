@@ -1,4 +1,4 @@
-﻿using Pastel;
+using Pastel;
 using PZTextureShrinker;
 using SixLabors.ImageSharp;
 using System.CommandLine;
@@ -33,22 +33,22 @@ var scaleratioOption = new Option<float>("--scale-ratio", "-sr")
 var iconTextureOption = new Option<bool>("--icon-texture", "-it")
 {
     DefaultValueFactory = _ => false,
-    Description = "process icon texture"
+    Description = "Process item icon textures"
 };
 var modelTextureOption = new Option<bool>("--model-texture", "-mt")
 {
     DefaultValueFactory = _ => false,
-    Description = "process model textures."
+    Description = "Process model textures"
 };
 var packTextureOption = new Option<bool>("--tiles-pack", "-tp")
 {
     DefaultValueFactory = _ => false,
-    Description = "process tiles textures."
+    Description = "Process tileset texture packs"
 };
 var allTextureOption = new Option<bool>("--all-texture", "-all")
 {
     DefaultValueFactory = _ => false,
-    Description = "process all png"
+    Description = "Process all PNG texture files"
 };
 
 rootCommand.Add(pathArgument);
@@ -86,7 +86,7 @@ if (parseResult.Errors.Count == 0 &&
         DirectoryInfo submods = new(Path.Combine(m.FullName, "mods"));
         if (!submods.Exists)
         {
-            Console.Error.WriteLine($"Corrupted mod {m}, has no any submod".Pastel(ConsoleColor.Red));
+            Console.Error.WriteLine($"Corrupted mod {m}, has no submods".Pastel(ConsoleColor.Red));
             continue;
         }
         var modinfos = submods.EnumerateFiles("mod.info", SearchOption.AllDirectories)
@@ -182,7 +182,7 @@ if (parseResult.Errors.Count == 0 &&
                     }
                     catch (Exception)
                     {
-                        Console.Error.WriteLine($"{xmlFile} is not a valid XML, this is a stupid error for mod.".Pastel(ConsoleColor.Red));
+                        Console.Error.WriteLine($"{xmlFile} is not a valid XML file. This is a common error in mods.".Pastel(ConsoleColor.Red));
                         continue;
                     }
                 }
@@ -198,7 +198,7 @@ if (parseResult.Errors.Count == 0 &&
     string[] unique_texture = [.. pending_textures.Distinct()];
     Console.WriteLine($"Found {unique_texture.Length} unique textures to process");
     string[] unique_packs = [.. pending_packs.Distinct()];
-    Console.WriteLine($"Found {unique_packs.Length} unique textures to process");
+    Console.WriteLine($"Found {unique_packs.Length} unique texture packs to process");
 
     var sk = new Shrinker(minSize, maxSize, scaleratio);
     if (unique_texture.Length > 0)
