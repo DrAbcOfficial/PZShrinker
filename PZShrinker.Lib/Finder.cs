@@ -17,6 +17,7 @@ public static partial class Finder
         {
             throw new DirectoryNotFoundException($"Corrupted mod {path}, has no submods");
         }
+
         return [.. submods.EnumerateFiles("mod.info", SearchOption.AllDirectories)
             .Select(m => Path.GetDirectoryName(m.FullName) ?? string.Empty)];
     }
@@ -181,7 +182,7 @@ public static partial class Finder
         var pending_packs = Enumerable.Empty<string>();
         DirectoryInfo submods = new(Path.Combine(m.FullName, "mods"));
         if (!submods.Exists)
-             throw new DirectoryNotFoundException($"Corrupted mod {m}, has no submods");
+            throw new DirectoryNotFoundException($"Corrupted mod {m}, has no submods");
         var modinfos = GetModAllBasePath(m.FullName);
         foreach (var mpp in modinfos)
         {

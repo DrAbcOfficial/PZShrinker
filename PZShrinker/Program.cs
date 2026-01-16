@@ -108,7 +108,7 @@ if (parseResult.Errors.Count == 0 &&
     parseResult.GetValue(allTextureOption) is bool allTexture &&
     parseResult.GetValue(fbxModelOption) is bool fbxModel &&
     parseResult.GetValue(d3dModelOption) is bool d3dModel &&
-    parseResult.GetValue(modelRemoveColor) is bool removeColor && 
+    parseResult.GetValue(modelRemoveColor) is bool removeColor &&
     parseResult.GetValue(modelRemoveOtherUV) is bool removeOtherUV &&
     parseResult.GetValue(modelRemoveTextureInfo) is bool removeOtherTextureInfo &&
     parseResult.GetValue(modelRemoveTangent) is bool removeTangent &&
@@ -125,37 +125,69 @@ if (parseResult.Errors.Count == 0 &&
         Console.Error.WriteLine($"Negetive?".Pastel(ConsoleColor.Red));
         return 3;
     }
-    
+
     var mods = di.GetDirectories();
     Console.WriteLine($"Found {mods.Length} mods, processing");
 
-    string[] unique_texture = [];
-    string[] unique_packs = [];
-    string[] unique_models = [];
-    foreach ( var mod in mods )
+    IEnumerable<string> texture = [];
+    IEnumerable<string> packs = [];
+    IEnumerable<string> models = [];
+    foreach (var mod in mods)
     {
-        if(allTexture || iconTexture || modelTexture)
-            unique_texture = [.. Finder.FindTextures(mod.FullName, allTexture, iconTexture, modelTexture)];
-        if(packTexture)
-            unique_packs = [.. Finder.FindPacks(mod.FullName)];
+        if (allTexture || iconTexture || modelTexture)
+            texture = texture.Concat(Finder.FindTextures(mod.FullName, allTexture, iconTexture, modelTexture));
+        if (packTexture)
+            packs = packs.Concat(Finder.FindPacks(mod.FullName));
         if (fbxModel)
-            unique_models = [.. Finder.FindFBXModels(mod.FullName)];
+            models = models.Concat(Finder.FindFBXModels(mod.FullName));
         if (d3dModel)
-            unique_models = [.. Finder.FindD3DModels(mod.FullName)];
+            models = models.Concat(Finder.FindD3DModels(mod.FullName));
     }
-    
+
+    string[] unique_texture = [.. texture.Distinct()];
+    string[] unique_packs = [.. packs.Distinct()];
+    string[] unique_models = [.. models.Distinct()];
+
     Console.WriteLine($"Found {unique_texture.Length} unique textures to process");
     Console.WriteLine($"Found {unique_packs.Length} unique texture packs to process");
     Console.WriteLine($"Found {unique_models.Length} unique unique_models to process");
 
-    var sk = new Shrinker(minSize, maxSize, scaleratio);
     if (unique_texture.Length > 0)
-        sk.ShrinkTexture(unique_texture);
+    {
+        try
+        {
+            (int p, int s) = Shrinker.ShrinkTexture(unique_texture, minSize, maxSize, scaleratio);
+            Console.WriteLine($"Processed {p} textures, skipped {s}".Pastel(ConsoleColor.Green));
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+        }
+    }
     if (unique_packs.Length > 0)
-        sk.ShrinkPack(unique_packs);
+    {
+        try
+        {
+            (int p, int s) = Shrinker.ShrinkPack(unique_packs, minSize, maxSize, scaleratio);
+            Console.WriteLine($"Processed {p} tiles packs, skipped {s}".Pastel(ConsoleColor.Green));
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+        }
+    }
     if (unique_models.Length > 0)
-        sk.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor);
-
+    {
+        try
+        {
+            (int p, int s) = Shrinker.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor);
+            Console.WriteLine($"Processed {p} models, skipped {s}".Pastel(ConsoleColor.Green));
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+        }
+    }
     Console.WriteLine($"\nProcessing complete!".Pastel(ConsoleColor.Green));
     return 0;
 }

@@ -7,9 +7,9 @@ using Image = SixLabors.ImageSharp.Image;
 
 namespace PZShrinker.Lib;
 
-public class Shrinker(int min, int max, float ratio)
+public static class Shrinker
 {
-    public void GetTextureShrinkSize(int originalWidth, int originalHeight, out int newWidth, out int newHeight)
+    public static void GetTextureShrinkSize(int originalWidth, int originalHeight, out int newWidth, out int newHeight, int min, int max, float ratio)
     {
         // Calculate new dimensions using scale_ratio first
         newWidth = (int)Math.Round(originalWidth * ratio);
@@ -57,10 +57,11 @@ public class Shrinker(int min, int max, float ratio)
         newWidth = Math.Max(newWidth, 1);
         newHeight = Math.Max(newHeight, 1);
     }
-    public (int processedCount, int skippedCount) ShrinkTexture(string[] list)
+    public static (int processedCount, int skippedCount) ShrinkTexture(string[] list, int min, int max, float ratio)
     {
         int processedCount = 0;
         int skippedCount = 0;
+        var exceptions = new List<Exception>();
 
         foreach (var texturePath in list)
         {
@@ -69,7 +70,7 @@ public class Shrinker(int min, int max, float ratio)
                 using var image = Image.Load(texturePath);
                 int originalWidth = image.Width;
                 int originalHeight = image.Height;
-                GetTextureShrinkSize(originalWidth, originalHeight, out int newWidth, out int newHeight);
+                GetTextureShrinkSize(originalWidth, originalHeight, out int newWidth, out int newHeight, min, max, ratio);
                 // Only resize if dimensions have changed
                 if (newWidth != originalWidth || newHeight != originalHeight)
                 {
@@ -88,17 +89,23 @@ public class Shrinker(int min, int max, float ratio)
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error processing {texturePath}: {ex.Message}");
+                exceptions.Add(ex);
                 skippedCount++;
                 continue;
             }
         }
+
+        if (exceptions.Count > 0)
+        {
+            throw new AggregateException("One or more items failed to process.", exceptions);
+        }
         return (processedCount, skippedCount);
     }
-    public (int processedCount, int skippedCount) ShrinkPack(string[] list)
+    public static (int processedCount, int skippedCount) ShrinkPack(string[] list, int min, int max, float ratio)
     {
         int processedCount = 0;
         int skippedCount = 0;
+        var exceptions = new List<Exception>();
 
         foreach (var packPath in list)
         {
@@ -146,7 +153,7 @@ public class Shrinker(int min, int max, float ratio)
                 using var image = Image.Load(pngData);
                 int originalWidth = image.Width;
                 int originalHeight = image.Height;
-                GetTextureShrinkSize(originalWidth, originalHeight, out int newWidth, out int newHeight);
+                GetTextureShrinkSize(originalWidth, originalHeight, out int newWidth, out int newHeight, min, max, ratio);
                 // Only resize if dimensions have changed
                 if (newWidth != originalWidth || newHeight != originalHeight)
                 {
@@ -186,121 +193,140 @@ public class Shrinker(int min, int max, float ratio)
                 else
                 {
                     Console.WriteLine($"Skipping pack {Path.GetFileName(packPath)} (no resizing needed: {originalWidth}x{originalHeight})");
-
                     skippedCount++;
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error processing pack {Path.GetFileName(packPath)}: {ex.Message}");
+                exceptions.Add(ex);
                 skippedCount++;
             }
         }
+        if (exceptions.Count > 0)
+        {
+            throw new AggregateException("One or more items failed to process.", exceptions);
+        }
         return (processedCount, skippedCount);
     }
-    public (int processedCount, int skippedCount) ShrinkModel(string[] list, bool removeOtherUV, bool removeTextureInfo, bool removeTangent, bool removeColor)
+    public static (int processedCount, int skippedCount) ShrinkModel(string[] list, bool removeOtherUV, bool removeTextureInfo, bool removeTangent, bool removeColor)
     {
         int processedCount = 0;
         int skippedCount = 0;
         var importer = new AssimpContext();
+        var exceptions = new List<Exception>();
         foreach (var model in list)
         {
-            Scene scene = importer.ImportFile(model, PostProcessSteps.Triangulate |
-                               PostProcessSteps.GenerateNormals |
-                               PostProcessSteps.JoinIdenticalVertices |
-                               PostProcessSteps.GenerateUVCoords);
-            foreach (var mesh in scene.Meshes)
+            Console.WriteLine($"starting processing model {model}");
+            try
             {
-                if (removeTangent)
+                Scene scene = importer.ImportFile(model, PostProcessSteps.Triangulate |
+                                   PostProcessSteps.GenerateNormals |
+                                   PostProcessSteps.JoinIdenticalVertices |
+                                   PostProcessSteps.GenerateUVCoords);
+                foreach (var mesh in scene.Meshes)
                 {
-                    mesh.Tangents.Clear();
-                    mesh.BiTangents.Clear();
-                }
-
-                if (removeOtherUV)
-                {
-                    if (mesh.TextureCoordinateChannelCount > 1)
+                    if (removeTangent)
                     {
-                        for (int i = 1; i < mesh.TextureCoordinateChannelCount; i++)
+                        mesh.Tangents.Clear();
+                        mesh.BiTangents.Clear();
+                    }
+
+                    if (removeOtherUV)
+                    {
+                        if (mesh.TextureCoordinateChannelCount > 1)
                         {
-                            mesh.TextureCoordinateChannels[i].Clear();
+                            for (int i = 1; i < mesh.TextureCoordinateChannelCount; i++)
+                            {
+                                mesh.TextureCoordinateChannels[i].Clear();
+                            }
                         }
                     }
-                }
 
-                if (removeColor)
-                {
-                    foreach(var ch in mesh.VertexColorChannels)
+                    if (removeColor)
                     {
-                        ch.Clear();
+                        foreach (var ch in mesh.VertexColorChannels)
+                        {
+                            ch.Clear();
+                        }
                     }
-                }
-                if (mesh.VertexCount == 0 || mesh.Faces.Count == 0)
-                {
-                    skippedCount++;
-                    continue;
-                }
-                var vertexMap = new Dictionary<VertexHashKey, int>();
-                var newPositions = new List<Vector3>();
-                var newNormals = new List<Vector3>();
-                var newUVs = new List<Vector3>();
-                var newIndices = new List<int[]>();
-                foreach (var face in mesh.Faces)
-                {
-                    if (face.IndexCount != 3)
+                    if (mesh.VertexCount == 0 || mesh.Faces.Count == 0)
+                    {
+                        skippedCount++;
                         continue;
-                    int[] triIndices = new int[3];
-                    for (int i = 0; i < 3; i++)
-                    {
-                        int origIdx = face.Indices[i];
-                        var pos = mesh.Vertices[origIdx];
-                        var normal = mesh.HasNormals
-                            ? mesh.Normals[origIdx]
-                            : new Vector3(0, 1, 0);
-                        var uvVec3 = mesh.HasTextureCoords(0)
-                            ? mesh.TextureCoordinateChannels[0][origIdx]
-                            : new Vector3(0, 0, 0);
-                        var uv = new Vector2(uvVec3.X, uvVec3.Y);
-                        var key = new VertexHashKey(pos, normal, uv);
-                        if (!vertexMap.TryGetValue(key, out int newIndex))
-                        {
-                            newIndex = newPositions.Count;
-                            vertexMap[key] = newIndex;
-
-                            newPositions.Add(pos);
-                            newNormals.Add(normal);
-                            newUVs.Add(uvVec3);
-                        }
-                        triIndices[i] = newIndex;
                     }
-                    newIndices.Add(triIndices);
-                }
-                mesh.Vertices.Clear();
-                mesh.Normals.Clear();
-                mesh.TextureCoordinateChannels[0].Clear();
-                mesh.Vertices.AddRange(newPositions);
-                mesh.Normals.AddRange(newNormals);
-                if (newUVs.Count > 0)
-                {
-                    mesh.TextureCoordinateChannels[0].AddRange(newUVs);
-                }
-                mesh.Faces.Clear();
-                foreach (var face in newIndices)
-                {
-                    mesh.Faces.Add(new Face(face));
-                }
-            }
+                    var vertexMap = new Dictionary<VertexHashKey, int>();
+                    var newPositions = new List<Vector3>();
+                    var newNormals = new List<Vector3>();
+                    var newUVs = new List<Vector3>();
+                    var newIndices = new List<int[]>();
+                    foreach (var face in mesh.Faces)
+                    {
+                        if (face.IndexCount != 3)
+                            continue;
+                        int[] triIndices = new int[3];
+                        for (int i = 0; i < 3; i++)
+                        {
+                            int origIdx = face.Indices[i];
+                            var pos = mesh.Vertices[origIdx];
+                            var normal = mesh.HasNormals
+                                ? mesh.Normals[origIdx]
+                                : new Vector3(0, 1, 0);
+                            var uvVec3 = mesh.HasTextureCoords(0)
+                                ? mesh.TextureCoordinateChannels[0][origIdx]
+                                : new Vector3(0, 0, 0);
+                            var uv = new Vector2(uvVec3.X, uvVec3.Y);
+                            var key = new VertexHashKey(pos, normal, uv);
+                            if (!vertexMap.TryGetValue(key, out int newIndex))
+                            {
+                                newIndex = newPositions.Count;
+                                vertexMap[key] = newIndex;
 
-            if (removeTextureInfo)
+                                newPositions.Add(pos);
+                                newNormals.Add(normal);
+                                newUVs.Add(uvVec3);
+                            }
+                            triIndices[i] = newIndex;
+                        }
+                        newIndices.Add(triIndices);
+                    }
+                    mesh.Vertices.Clear();
+                    mesh.Normals.Clear();
+                    mesh.TextureCoordinateChannels[0].Clear();
+                    mesh.Vertices.AddRange(newPositions);
+                    mesh.Normals.AddRange(newNormals);
+                    if (newUVs.Count > 0)
+                    {
+                        mesh.TextureCoordinateChannels[0].AddRange(newUVs);
+                    }
+                    mesh.Faces.Clear();
+                    foreach (var face in newIndices)
+                    {
+                        mesh.Faces.Add(new Face(face));
+                    }
+                }
+
+                if (removeTextureInfo)
+                {
+                    if (scene.HasMaterials)
+                        scene.Materials.Clear();
+                    if (scene.HasTextures)
+                        scene.Textures.Clear();
+                }
+
+                string formatId = Path.GetExtension(model).ToLower();
+                importer.ExportFile(scene, model, formatId);
+
+                processedCount++;
+            }
+            catch (Exception ex)
             {
-                if(scene.HasMaterials)
-                    scene.Materials.Clear();
-                if(scene.HasTextures)
-                    scene.Textures.Clear();
+                exceptions.Add(ex);
+                skippedCount++;
             }
-
-            processedCount++;
-
+        }
+        if (exceptions.Count > 0)
+        {
+            throw new AggregateException("One or more items failed to process.", exceptions);
         }
         return (processedCount, skippedCount);
     }
