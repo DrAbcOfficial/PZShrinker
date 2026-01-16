@@ -1,6 +1,6 @@
-# PZTextureShrinker
+# PZShrinker
 
-一个用于游戏Project Zomboid批量读取贴图位置并调整尺寸的工具
+一个用于游戏Project Zomboid批量读取贴图位置并调整尺寸的工具，同时支持模型文件优化
 
 ## 为什么编写本工具
 
@@ -21,30 +21,74 @@
 
 因此，最稳妥的方式是在 Mod 文件层面就将贴图缩小
 
+## 项目结构
+
+- **PZShrinker**：命令行工具
+- **PZShrinker.GUI**：图形界面工具
+- **PZShrinker.Lib**：核心功能库
+
 ## 使用方法
 
+### 命令行工具
+
 ```bash
-./PZTextureShrinker <你的僵毁SteamWorkShop路径> -max 128 -min 32 -sr 0.25 -it -mt
+./PZShrinker <你的僵毁SteamWorkShop路径> -tmax 512 -tmin 64 -tsr 0.25 -it -mt -fm -xm
 ```
 
-## 可用变量
+### 图形界面工具
 
-|变量|别名|描述|默认值|
+直接运行 `PZShrinker.GUI.exe`，选择 Steam Workshop 路径，勾选需要的选项，点击 "Apply" 按钮即可。
+
+路径示例：`G:\SteamLibrary\steamapps\workshop\content\108600`
+
+## 可用参数
+
+### 纹理参数
+
+|参数|别名|描述|默认值|
 |:----|:----|:----|:----|
-| `-max` | `--max-size` | 指定最大允许的贴图尺寸 | 默认512|
-| `-min` | `--min-size` | 小于这个尺寸的贴图不缩放 | 默认64|
-| `-sr` | `--scale-ratio` | 缩放比例，一般在0到1之间，当然你可以填大于1的数，把所有的贴图都变成24K钛合金图| 默认0.25|
+| `-tmax` | `--texture-max-size` | 指定最大允许的贴图尺寸 | 默认512|
+| `-tmin` | `--texture-min-size` | 小于这个尺寸的贴图不缩放 | 默认64|
+| `-tsr` | `--texture-scale-ratio` | 缩放比例，一般在0到1之间，当然你可以填大于1的数，把所有的贴图都变成24K钛合金图| 默认0.25|
 
-## 可用开关
+### 开关参数
 
 |开关|别名|描述|默认值|
 |:----|:----|:----|:----|
-| `-it` | `--icon-texture`| 缩放图标，就是你物品栏那个|关闭|
-| `-mt` | `--model-texture` | 缩放角色/物品/衣服/车辆模型纹理|关闭|
-| `-tp` | `--tiles-pack` | 缩放地图纹理，不推荐开启，缩放后Offset必定会有偏差，重新映射到游戏尺寸后误差传递会很夸张|关闭|
-| `-all` | `--all-texture` | 缩放所有Png，不推荐开启，会导致文字tiles全部混乱，除非你实在没办法决定来一把梭哈|关闭|
+| `-it` | `--icon-texture`| 处理物品图标纹理 | 关闭|
+| `-mt` | `--model-texture` | 处理角色/物品/衣服/车辆模型纹理 | 关闭|
+| `-tp` | `--tiles-pack` | 处理地图纹理包，不推荐开启，缩放后Offset必定会有偏差 | 关闭|
+| `-all` | `--all-texture` | 处理所有PNG纹理文件，不推荐开启，会导致文字tiles全部混乱 | 关闭|
+| `-fm` | `--fbx-model` | 处理所有FBX模型文件 | 关闭|
+| `-xm` | `--x-model` | 处理所有X模型文件 | 关闭|
 
+### 模型优化参数
+
+|参数|别名|描述|默认值|
+|:----|:----|:----|:----|
+| `-mrouv` | `--model-remove-other-uv` | 移除其他UV通道（1~7），只保留UV0 | 关闭|
+| `-mrtt` | `--model-remove-texture` | 移除所有嵌入的纹理和材质 | 关闭|
+| `-mrtg` | `--model-remove-tangents` | 移除切线和副切线 | 关闭|
+| `-mrvc` | `--model-remove-vertex-color` | 移除所有顶点颜色 | 关闭|
+
+## 功能说明
+
+1. **纹理缩放**：
+   - 支持对图标纹理、模型纹理、地图纹理包进行缩放
+   - 可以设置最大尺寸、最小尺寸和缩放比例
+   - 使用Lanczos3算法进行高质量缩放
+
+2. **模型优化**：
+   - 支持处理FBX和X格式的模型文件
+   - 可以移除不需要的UV通道、嵌入纹理、切线和顶点颜色
+   - 优化模型结构，减少文件大小。你为什么要把模型在同一个位置复制三份？下次记得拖动模型时候**不要**按住`Shift`
+   - 删除模型嵌入的材质绝对路径，是的，我不想让`C:/全能看图王批量生成`或者`F:/老板商单`这样的信息加载进入我的内存
+
+3. **图形界面**：
+   - 提供了直观的可视化操作界面
+   - 支持所有命令行工具的功能
+   - 适合不熟悉命令行操作的用户
 
 ## 建议搭配
 
-在`ProjectZomboid64.json`中加上启动参数`-XX:+UseCompactObjectHeaders`使用紧凑头，我不知道小浣熊为什么搭配了一个JVM25却默认不开启，正如我所说，我没有开发过Java
+在`ProjectZomboid64.json`中加上启动参数`-XX:+UseCompactObjectHeaders`使用紧凑头，我不知道小浣熊为什么搭配了一个JRE25却默认不开启，正如我所说，我没有开发过Java

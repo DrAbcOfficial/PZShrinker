@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - v*  # 当有v开头的tag push时触发
+      - v*
 
 jobs:
   build-and-release:
@@ -16,38 +16,18 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build project
-        run: dotnet build --configuration Release --no-restore
-
       - name: Publish project
-        run: dotnet publish PZTextureShrinker/PZTextureShrinker.csproj --configuration Release --no-build --output ./publish
+        run: dotnet publish -r win-x64 -c Release /p:PublishReadyToRun=true  -o ./publish
 
       - name: Create release package
         run: |
           cd ./publish
-          Compress-Archive -Path * -DestinationPath ../PZTextureShrinker_${{ github.ref_name }}.zip
+          Compress-Archive -Path * -DestinationPath ./PZShrinker_${{ github.ref_name }}.zip
 
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        id: create_release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./PZTextureShrinker_${{ github.ref_name }}.zip
-          asset_name: PZTextureShrinker_${{ github.ref_name }}.zip
-          asset_content_type: application/zip
+            name: PZShrinker_${{ github.ref }}
+            files: |
+              ./PZShrinker_${{ github.ref_name }}.zip
