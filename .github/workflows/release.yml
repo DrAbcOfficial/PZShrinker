@@ -19,10 +19,11 @@ jobs:
       - name: Publish project
         run: dotnet publish -r win-x64 -c Release /p:PublishReadyToRun=true  -o ./publish
 
-      - name: Create release package
-        run: |
-          cd ./publish
-          Compress-Archive -Path * -DestinationPath ./PZShrinker_${{ github.ref_name }}.zip
+      - name: Zipping All
+        uses: vimtor/action-zip@v1
+        with:
+            files: ./publish
+            dest: PZShrinker_${{ github.ref_name }}.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -30,4 +31,4 @@ jobs:
         with:
             name: PZShrinker_${{ github.ref }}
             files: |
-              ./PZShrinker_${{ github.ref_name }}.zip
+              PZShrinker_${{ github.ref_name }}.zip
