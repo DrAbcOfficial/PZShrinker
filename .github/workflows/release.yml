@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - v*
+      
+permissions:
+  contents: write
 
 jobs:
   build-and-release:
@@ -23,7 +26,7 @@ jobs:
         uses: vimtor/action-zip@v1
         with:
             files: ./publish
-            dest: PZShrinker.zip
+            dest: PZShrinker_${{ github.ref_name }}.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -31,4 +34,4 @@ jobs:
         with:
             name: PZShrinker_${{ github.ref }}
             files: |
-              PZShrinker.zip
+              PZShrinker_${{ github.ref_name }}.zip
