@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PZShrinker.Lib/PZShrinker.Lib.csproj" Id="7236fa8f-e007-45ab-9bf4-fe7413c68600" />
+  <Project Path="PZShrinker/PZShrinker.csproj" />
+</Solution>
