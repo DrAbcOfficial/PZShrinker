@@ -31,4 +31,4 @@ jobs:
         with:
             name: PZShrinker_${{ github.ref }}
             files: |
-              PZShrinker_${{ github.ref_name }}.zip
+              PZShrinker.zip
