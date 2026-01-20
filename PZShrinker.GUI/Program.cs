@@ -34,30 +34,37 @@ public class MainForm : Form
     private readonly TextBox scaleRatioBox;
 
     public MainForm()
-    {
-        Title = "PZShrinker";
-        Size = new Size(400, 450);
-        MinimumSize = new Size(400, 450);
-        var layout = new DynamicLayout { Padding = new Padding(10), Spacing = new Size(5, 5) };
+        {
+            Title = "PZ Shrinker";
+            Size = new Size(400, 450);
+            MinimumSize = new Size(400, 450);
+            var layout = new DynamicLayout { Padding = new Padding(10), Spacing = new Size(5, 5) };
 
-        // === 文件夹选择部分 ===
-        folderPathBox = new TextBox { ReadOnly = true, Width = 250 };
-        selectFolderButton = new Button { Text = "Select" };
-        selectFolderButton.Click += OnSelectFolderClick;
+            // === 文件夹选择部分 ===
+            folderPathBox = new TextBox { ReadOnly = true, Width = 250 };
+            selectFolderButton = new Button { Text = "选择" };
+            selectFolderButton.ToolTip = "选择Steam Workshop文件夹，如G:\\SteamLibrary\\steamapps\\workshop\\content\\108600";
+            selectFolderButton.Click += OnSelectFolderClick;
 
-        layout.AddRow(new TableRow("Workshop:", folderPathBox, selectFolderButton));
-        layout.AddSeparateRow(); // 分隔线或空行
+            layout.AddRow(new TableRow("工作目录:", folderPathBox, selectFolderButton));
+            layout.AddSeparateRow(); // 分隔线或空行
 
-        // === Switcher 分组 ===
-        var switcherGroup = new GroupBox { Text = "Switcher" };
-        var switcherLayout = new TableLayout(2, 3) { Spacing = new Size(10, 5) };
+            // === Switcher 分组 ===
+            var switcherGroup = new GroupBox { Text = "文件类型" };
+            var switcherLayout = new TableLayout(2, 3) { Spacing = new Size(10, 5) };
 
-        iconTextureCheck = new CheckBox { Text = "Icon Texture" };
-        modelTextureCheck = new CheckBox { Text = "Model Texture" };
-        packTextureCheck = new CheckBox { Text = "Tiles Pack" };
-        allTextureCheck = new CheckBox { Text = "All Texture" };
-        fbxModelCheck = new CheckBox { Text = "FBX Model" };
-        d3dModelCheck = new CheckBox { Text = "X Model" };
+            iconTextureCheck = new CheckBox { Text = "图标纹理" };
+            iconTextureCheck.ToolTip = "处理图标纹理文件";
+            modelTextureCheck = new CheckBox { Text = "模型纹理" };
+            modelTextureCheck.ToolTip = "处理模型纹理文件";
+            packTextureCheck = new CheckBox { Text = "纹理包" };
+            packTextureCheck.ToolTip = "处理纹理包文件（不推荐开启）";
+            allTextureCheck = new CheckBox { Text = "所有纹理" };
+            allTextureCheck.ToolTip = "处理所有纹理文件（不推荐开启）";
+            fbxModelCheck = new CheckBox { Text = "FBX模型" };
+            fbxModelCheck.ToolTip = "处理FBX格式模型文件";
+            d3dModelCheck = new CheckBox { Text = "X模型" };
+            d3dModelCheck.ToolTip = "处理X格式模型文件";
 
         var switcherChecks = new[]
         {
@@ -79,13 +86,18 @@ public class MainForm : Form
         layout.Add(switcherGroup);
 
         // === Remove ModelInfo 分组 ===
-        var removeGroup = new GroupBox { Text = "Model config" };
+        var removeGroup = new GroupBox { Text = "模型配置" };
 
-        removeOtherUVCheck = new CheckBox { Text = "Remove Other UV" };
-        removeOtherTextureInfoCheck = new CheckBox { Text = "Remove Embedded textures" };
-        removeTangentCheck = new CheckBox { Text = "Remove Tangents" };
-        removeColorCheck = new CheckBox { Text = "Remove Vertex Color" };
-        mergeAllMeshCheck = new CheckBox { Text = "Merge All Mesh Vertices" };
+        removeOtherUVCheck = new CheckBox { Text = "移除其他UV" };
+        removeOtherUVCheck.ToolTip = "移除模型中多余的UV通道";
+        removeOtherTextureInfoCheck = new CheckBox { Text = "移除嵌入纹理信息" };
+        removeOtherTextureInfoCheck.ToolTip = "移除模型中嵌入的纹理信息";
+        removeTangentCheck = new CheckBox { Text = "移除切线" };
+        removeTangentCheck.ToolTip = "移除模型中的切线数据";
+        removeColorCheck = new CheckBox { Text = "移除顶点颜色" };
+        removeColorCheck.ToolTip = "移除模型中的顶点颜色数据";
+        mergeAllMeshCheck = new CheckBox { Text = "合并所有网格" };
+        mergeAllMeshCheck.ToolTip = "合并模型中的所有网格";
 
         var removeChecks = new[]
         {
@@ -103,19 +115,22 @@ public class MainForm : Form
         layout.Add(removeGroup);
 
         // === Texture Config 分组 ===
-        var configGroup = new GroupBox { Text = "Texture Config" };
+        var configGroup = new GroupBox { Text = "纹理配置" };
 
         maxSizeBox = new TextBox { Width = 80, Text = "512" };
+        maxSizeBox.ToolTip = "纹理最大尺寸";
         minSizeBox = new TextBox { Width = 80, Text = "128" };
+        minSizeBox.ToolTip = "纹理最小尺寸";
         scaleRatioBox = new TextBox { Width = 80, Text = "0.25" };
+        scaleRatioBox.ToolTip = "纹理缩放比例";
 
         var configLayout = new TableLayout
         {
             Rows =
             {
-                new TableRow(new Label { Text = "Max:" }, maxSizeBox),
-                new TableRow(new Label { Text = "Min:" }, minSizeBox),
-                new TableRow(new Label { Text = "Scale ratio:" }, scaleRatioBox)
+                new TableRow(new Label { Text = "最大值:" }, maxSizeBox),
+                new TableRow(new Label { Text = "最小值:" }, minSizeBox),
+                new TableRow(new Label { Text = "缩放比例:" }, scaleRatioBox)
             },
             Spacing = new Size(10, 5)
         };
@@ -129,8 +144,8 @@ public class MainForm : Form
             {
                 null,
                 new TableRow(
-                    new Button { Text = "Cancel", Command = new Command((s,e) => Close()) },
-                    new Button { Text = "Apply", Command = new Command(OnApply) }
+                    new Button { Text = "取消", ToolTip = "取消操作并关闭窗口", Command = new Command((s,e) => Close()) },
+                    new Button { Text = "应用", ToolTip = "应用设置并开始处理", Command = new Command(OnApply) }
                 )
             }
         };
@@ -177,17 +192,17 @@ public class MainForm : Form
                 var di = new DirectoryInfo(path);
                 if (!di.Exists)
                 {
-                    Console.Error.WriteLine($"The path '{path}' does not exist.");
+                    Console.Error.WriteLine($"路径 '{path}' 不存在。");
                     return;
                 }
                 if (maxSize < 0 || minSize < 0 || scaleratio < 0)
                 {
-                    Console.Error.WriteLine($"Negetive?");
+                    Console.Error.WriteLine($"数值不能为负数！");
                     return;
                 }
 
                 var mods = di.GetDirectories();
-                Console.WriteLine($"Found {mods.Length} mods, processing");
+                Console.WriteLine($"找到 {mods.Length} 个模组，开始处理");
 
                 IEnumerable<string> texture = [];
                 IEnumerable<string> packs = [];
@@ -208,28 +223,28 @@ public class MainForm : Form
                 string[] unique_packs = [.. packs.Distinct()];
                 string[] unique_models = [.. models.Distinct()];
 
-                Console.WriteLine($"Found {unique_texture.Length} unique textures to process");
-                Console.WriteLine($"Found {unique_packs.Length} unique texture packs to process");
-                Console.WriteLine($"Found {unique_models.Length} unique unique_models to process");
+                Console.WriteLine($"找到 {unique_texture.Length} 个独特纹理文件需要处理");
+                Console.WriteLine($"找到 {unique_packs.Length} 个独特纹理包需要处理");
+                Console.WriteLine($"找到 {unique_models.Length} 个独特模型需要处理");
 
                 if (unique_texture.Length > 0)
                 {
                     (int p, int s) = Shrinker.ShrinkTexture(unique_texture, minSize, maxSize, scaleratio);
-                    Console.WriteLine($"Processed {p} textures, skipped {s}");
+                    Console.WriteLine($"处理了 {p} 个纹理，跳过了 {s} 个");
                 }
                 if (unique_packs.Length > 0)
                 {
                     (int p, int s) = Shrinker.ShrinkPack(unique_packs, minSize, maxSize, scaleratio);
-                    Console.WriteLine($"Processed {p} tiles packs, skipped {s}");
+                    Console.WriteLine($"处理了 {p} 个纹理包，跳过了 {s} 个");
                 }
                 if (unique_models.Length > 0)
                 {
                     (int p, int s) = Shrinker.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor, mergeAllMesh);
-                    Console.WriteLine($"Processed {p} models, skipped {s}");
+                    Console.WriteLine($"处理了 {p} 个模型，跳过了 {s} 个");
                 }
-                Console.WriteLine($"\nProcessing complete!");
+                Console.WriteLine($"\n处理完成！");
             }).Wait();
-            MessageBox.Show(this, "Done！", "OK");
+            MessageBox.Show(this, "处理完成！", "成功");
         }
         catch (AggregateException ex)
         {
