@@ -47,6 +47,11 @@ var modelRemoveColor = new Option<bool>("--model-remove-vertex-color", "-mrvc")
     DefaultValueFactory = _ => false,
     Description = "Remove all vertex colors"
 };
+var modelMergeAllMesh = new Option<bool>("--model-merge-all-mesh", "-mmam")
+{
+    DefaultValueFactory = _ => false,
+    Description = "Merge identical vertices across all meshes"
+};
 
 
 var iconTextureOption = new Option<bool>("--icon-texture", "-it")
@@ -95,6 +100,7 @@ rootCommand.Add(modelRemoveColor);
 rootCommand.Add(modelRemoveOtherUV);
 rootCommand.Add(modelRemoveTangent);
 rootCommand.Add(modelRemoveTextureInfo);
+rootCommand.Add(modelMergeAllMesh);
 
 
 ParseResult parseResult = rootCommand.Parse(args);
@@ -112,6 +118,7 @@ if (parseResult.Errors.Count == 0 &&
     parseResult.GetValue(modelRemoveOtherUV) is bool removeOtherUV &&
     parseResult.GetValue(modelRemoveTextureInfo) is bool removeOtherTextureInfo &&
     parseResult.GetValue(modelRemoveTangent) is bool removeTangent &&
+    parseResult.GetValue(modelMergeAllMesh) is bool mergeAllMesh &&
     parseResult.GetValue(modelTextureOption) is bool modelTexture)
 {
     var di = new DirectoryInfo(path);
@@ -180,7 +187,7 @@ if (parseResult.Errors.Count == 0 &&
     {
         try
         {
-            (int p, int s) = Shrinker.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor);
+            (int p, int s) = Shrinker.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor, mergeAllMesh);
             Console.WriteLine($"Processed {p} models, skipped {s}".Pastel(ConsoleColor.Green));
         }
         catch (Exception e)

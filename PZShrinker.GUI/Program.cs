@@ -1,4 +1,4 @@
-﻿using Assimp.Unmanaged;
+using Assimp.Unmanaged;
 using Eto.Drawing;
 using Eto.Forms;
 using PZShrinker.Lib;
@@ -26,6 +26,7 @@ public class MainForm : Form
     private readonly CheckBox removeOtherTextureInfoCheck;
     private readonly CheckBox removeTangentCheck;
     private readonly CheckBox removeColorCheck;
+    private readonly CheckBox mergeAllMeshCheck;
 
     // Texture Config TextBoxes
     private readonly TextBox maxSizeBox;
@@ -84,13 +85,15 @@ public class MainForm : Form
         removeOtherTextureInfoCheck = new CheckBox { Text = "Remove Embedded textures" };
         removeTangentCheck = new CheckBox { Text = "Remove Tangents" };
         removeColorCheck = new CheckBox { Text = "Remove Vertex Color" };
+        mergeAllMeshCheck = new CheckBox { Text = "Merge All Mesh Vertices" };
 
         var removeChecks = new[]
         {
             removeOtherUVCheck,
             removeOtherTextureInfoCheck,
             removeTangentCheck,
-            removeColorCheck
+            removeColorCheck,
+            mergeAllMeshCheck
         };
 
         var removeLayout = new StackLayout { Spacing = 5 };
@@ -163,6 +166,7 @@ public class MainForm : Form
             bool removeOtherTextureInfo = removeOtherTextureInfoCheck.Checked ?? false;
             bool removeTangent = removeTangentCheck.Checked ?? false;
             bool removeColor = removeColorCheck.Checked ?? false;
+            bool mergeAllMesh = mergeAllMeshCheck.Checked ?? false;
 
             // 解析数字输入（带默认值和错误处理）
             int maxSize = int.TryParse(maxSizeBox.Text, out var max) ? max : 512;
@@ -210,47 +214,44 @@ public class MainForm : Form
 
                 if (unique_texture.Length > 0)
                 {
-                    try
-                    {
-                        (int p, int s) = Shrinker.ShrinkTexture(unique_texture, minSize, maxSize, scaleratio);
-                        Console.WriteLine($"Processed {p} textures, skipped {s}");
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
+                    (int p, int s) = Shrinker.ShrinkTexture(unique_texture, minSize, maxSize, scaleratio);
+                    Console.WriteLine($"Processed {p} textures, skipped {s}");
                 }
                 if (unique_packs.Length > 0)
                 {
-                    try
-                    {
-                        (int p, int s) = Shrinker.ShrinkPack(unique_packs, minSize, maxSize, scaleratio);
-                        Console.WriteLine($"Processed {p} tiles packs, skipped {s}");
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
+                    (int p, int s) = Shrinker.ShrinkPack(unique_packs, minSize, maxSize, scaleratio);
+                    Console.WriteLine($"Processed {p} tiles packs, skipped {s}");
                 }
                 if (unique_models.Length > 0)
                 {
-                    try
-                    {
-                        (int p, int s) = Shrinker.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor);
-                        Console.WriteLine($"Processed {p} models, skipped {s}");
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.ToString());
-                    }
+                    (int p, int s) = Shrinker.ShrinkModel(unique_models, removeOtherUV, removeOtherTextureInfo, removeTangent, removeColor, mergeAllMesh);
+                    Console.WriteLine($"Processed {p} models, skipped {s}");
                 }
                 Console.WriteLine($"\nProcessing complete!");
             }).Wait();
             MessageBox.Show(this, "Done！", "OK");
         }
+        catch (AggregateException ex)
+        {
+            // 处理聚合异常，显示所有内部异常信息
+            var errorMessages = new System.Text.StringBuilder();
+            errorMessages.AppendLine("处理过程中出现以下错误：");
+            errorMessages.AppendLine();
+            
+            int exceptionCount = 1;
+            foreach (var innerEx in ex.InnerExceptions)
+            {
+                errorMessages.AppendLine($"错误 {exceptionCount++}: {innerEx.Message}");
+                errorMessages.AppendLine($"堆栈跟踪: {innerEx.StackTrace}");
+                errorMessages.AppendLine();
+            }
+            
+            MessageBox.Show(this, errorMessages.ToString(), "Error", MessageBoxButtons.OK, MessageBoxType.Error);
+        }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxType.Error);
+            // 处理其他类型的异常
+            MessageBox.Show(this, $"Error: {ex.Message}\n\n堆栈跟踪: {ex.StackTrace}", "Error", MessageBoxButtons.OK, MessageBoxType.Error);
         }
     }
 }

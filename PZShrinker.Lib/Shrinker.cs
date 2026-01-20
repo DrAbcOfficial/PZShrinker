@@ -208,7 +208,7 @@ public static class Shrinker
         }
         return (processedCount, skippedCount);
     }
-    public static (int processedCount, int skippedCount) ShrinkModel(string[] list, bool removeOtherUV, bool removeTextureInfo, bool removeTangent, bool removeColor)
+    public static (int processedCount, int skippedCount) ShrinkModel(string[] list, bool removeOtherUV, bool removeTextureInfo, bool removeTangent, bool removeColor, bool mergeAllMesh)
     {
         int processedCount = 0;
         int skippedCount = 0;
@@ -223,85 +223,189 @@ public static class Shrinker
                                    PostProcessSteps.GenerateNormals |
                                    PostProcessSteps.JoinIdenticalVertices |
                                    PostProcessSteps.GenerateUVCoords);
-                foreach (var mesh in scene.Meshes)
+                if (mergeAllMesh)
                 {
-                    if (removeTangent)
-                    {
-                        mesh.Tangents.Clear();
-                        mesh.BiTangents.Clear();
-                    }
-
-                    if (removeOtherUV)
-                    {
-                        if (mesh.TextureCoordinateChannelCount > 1)
-                        {
-                            for (int i = 1; i < mesh.TextureCoordinateChannelCount; i++)
-                            {
-                                mesh.TextureCoordinateChannels[i].Clear();
-                            }
-                        }
-                    }
-
-                    if (removeColor)
-                    {
-                        foreach (var ch in mesh.VertexColorChannels)
-                        {
-                            ch.Clear();
-                        }
-                    }
-                    if (mesh.VertexCount == 0 || mesh.Faces.Count == 0)
-                    {
-                        skippedCount++;
-                        continue;
-                    }
+                    // 全局合并模式：在所有网格之间合并顶点
                     var vertexMap = new Dictionary<VertexHashKey, int>();
-                    var newPositions = new List<Vector3>();
-                    var newNormals = new List<Vector3>();
-                    var newUVs = new List<Vector3>();
-                    var newIndices = new List<int[]>();
-                    foreach (var face in mesh.Faces)
-                    {
-                        if (face.IndexCount != 3)
-                            continue;
-                        int[] triIndices = new int[3];
-                        for (int i = 0; i < 3; i++)
-                        {
-                            int origIdx = face.Indices[i];
-                            var pos = mesh.Vertices[origIdx];
-                            var normal = mesh.HasNormals
-                                ? mesh.Normals[origIdx]
-                                : new Vector3(0, 1, 0);
-                            var uvVec3 = mesh.HasTextureCoords(0)
-                                ? mesh.TextureCoordinateChannels[0][origIdx]
-                                : new Vector3(0, 0, 0);
-                            var uv = new Vector2(uvVec3.X, uvVec3.Y);
-                            var key = new VertexHashKey(pos, normal, uv);
-                            if (!vertexMap.TryGetValue(key, out int newIndex))
-                            {
-                                newIndex = newPositions.Count;
-                                vertexMap[key] = newIndex;
+                    var globalPositions = new List<Vector3>();
+                    var globalNormals = new List<Vector3>();
+                    var globalUVs = new List<Vector3>();
 
-                                newPositions.Add(pos);
-                                newNormals.Add(normal);
-                                newUVs.Add(uvVec3);
-                            }
-                            triIndices[i] = newIndex;
+                    foreach (var mesh in scene.Meshes)
+                    {
+                        if (removeTangent)
+                        {
+                            mesh.Tangents.Clear();
+                            mesh.BiTangents.Clear();
                         }
-                        newIndices.Add(triIndices);
+
+                        if (removeOtherUV)
+                        {
+                            if (mesh.TextureCoordinateChannelCount > 1)
+                            {
+                                for (int i = 1; i < mesh.TextureCoordinateChannelCount; i++)
+                                {
+                                    mesh.TextureCoordinateChannels[i].Clear();
+                                }
+                            }
+                        }
+
+                        if (removeColor)
+                        {
+                            foreach (var ch in mesh.VertexColorChannels)
+                            {
+                                ch.Clear();
+                            }
+                        }
+                        if (mesh.VertexCount == 0 || mesh.Faces.Count == 0)
+                        {
+                            skippedCount++;
+                            continue;
+                        }
+                        
+                        var newIndices = new List<int[]>();
+                        foreach (var face in mesh.Faces)
+                        {
+                            if (face.IndexCount != 3)
+                                continue;
+                            int[] triIndices = new int[3];
+                            for (int i = 0; i < 3; i++)
+                            {
+                                int origIdx = face.Indices[i];
+                                var pos = mesh.Vertices[origIdx];
+                                var normal = mesh.HasNormals
+                                    ? mesh.Normals[origIdx]
+                                    : new Vector3(0, 1, 0);
+                                var uvVec3 = mesh.HasTextureCoords(0)
+                                    ? mesh.TextureCoordinateChannels[0][origIdx]
+                                    : new Vector3(0, 0, 0);
+                                var uv = new Vector2(uvVec3.X, uvVec3.Y);
+                                var key = new VertexHashKey(pos, normal, uv);
+                                if (!vertexMap.TryGetValue(key, out int newIndex))
+                                {
+                                    newIndex = globalPositions.Count;
+                                    vertexMap[key] = newIndex;
+
+                                    globalPositions.Add(pos);
+                                    globalNormals.Add(normal);
+                                    globalUVs.Add(uvVec3);
+                                }
+                                triIndices[i] = newIndex;
+                            }
+                            newIndices.Add(triIndices);
+                        }
+                        
+                        mesh.Faces.Clear();
+                        foreach (var face in newIndices)
+                        {
+                            mesh.Faces.Add(new Face(face));
+                        }
                     }
-                    mesh.Vertices.Clear();
-                    mesh.Normals.Clear();
-                    mesh.TextureCoordinateChannels[0].Clear();
-                    mesh.Vertices.AddRange(newPositions);
-                    mesh.Normals.AddRange(newNormals);
-                    if (newUVs.Count > 0)
+
+                    // 现在更新所有网格的顶点数据，使用共享的全局顶点列表
+                    foreach (var mesh in scene.Meshes)
                     {
-                        mesh.TextureCoordinateChannels[0].AddRange(newUVs);
+                        if (mesh.VertexCount == 0 || mesh.Faces.Count == 0)
+                            continue;
+
+                        mesh.Vertices.Clear();
+                        mesh.Normals.Clear();
+                        if (mesh.TextureCoordinateChannelCount > 0)
+                        {
+                            mesh.TextureCoordinateChannels[0].Clear();
+                        }
+
+                        mesh.Vertices.AddRange(globalPositions);
+                        mesh.Normals.AddRange(globalNormals);
+                        if (globalUVs.Count > 0 && mesh.TextureCoordinateChannelCount > 0)
+                        {
+                            mesh.TextureCoordinateChannels[0].AddRange(globalUVs);
+                        }
                     }
-                    mesh.Faces.Clear();
-                    foreach (var face in newIndices)
+                }
+                else
+                {
+                    // 单网格合并模式：只在每个网格内部合并顶点
+                    foreach (var mesh in scene.Meshes)
                     {
-                        mesh.Faces.Add(new Face(face));
+                        if (removeTangent)
+                        {
+                            mesh.Tangents.Clear();
+                            mesh.BiTangents.Clear();
+                        }
+
+                        if (removeOtherUV)
+                        {
+                            if (mesh.TextureCoordinateChannelCount > 1)
+                            {
+                                for (int i = 1; i < mesh.TextureCoordinateChannelCount; i++)
+                                {
+                                    mesh.TextureCoordinateChannels[i].Clear();
+                                }
+                            }
+                        }
+
+                        if (removeColor)
+                        {
+                            foreach (var ch in mesh.VertexColorChannels)
+                            {
+                                ch.Clear();
+                            }
+                        }
+                        if (mesh.VertexCount == 0 || mesh.Faces.Count == 0)
+                        {
+                            skippedCount++;
+                            continue;
+                        }
+                        var vertexMap = new Dictionary<VertexHashKey, int>();
+                        var newPositions = new List<Vector3>();
+                        var newNormals = new List<Vector3>();
+                        var newUVs = new List<Vector3>();
+                        var newIndices = new List<int[]>();
+                        foreach (var face in mesh.Faces)
+                        {
+                            if (face.IndexCount != 3)
+                                continue;
+                            int[] triIndices = new int[3];
+                            for (int i = 0; i < 3; i++)
+                            {
+                                int origIdx = face.Indices[i];
+                                var pos = mesh.Vertices[origIdx];
+                                var normal = mesh.HasNormals
+                                    ? mesh.Normals[origIdx]
+                                    : new Vector3(0, 1, 0);
+                                var uvVec3 = mesh.HasTextureCoords(0)
+                                    ? mesh.TextureCoordinateChannels[0][origIdx]
+                                    : new Vector3(0, 0, 0);
+                                var uv = new Vector2(uvVec3.X, uvVec3.Y);
+                                var key = new VertexHashKey(pos, normal, uv);
+                                if (!vertexMap.TryGetValue(key, out int newIndex))
+                                {
+                                    newIndex = newPositions.Count;
+                                    vertexMap[key] = newIndex;
+
+                                    newPositions.Add(pos);
+                                    newNormals.Add(normal);
+                                    newUVs.Add(uvVec3);
+                                }
+                                triIndices[i] = newIndex;
+                            }
+                            newIndices.Add(triIndices);
+                        }
+                        mesh.Vertices.Clear();
+                        mesh.Normals.Clear();
+                        mesh.TextureCoordinateChannels[0].Clear();
+                        mesh.Vertices.AddRange(newPositions);
+                        mesh.Normals.AddRange(newNormals);
+                        if (newUVs.Count > 0)
+                        {
+                            mesh.TextureCoordinateChannels[0].AddRange(newUVs);
+                        }
+                        mesh.Faces.Clear();
+                        foreach (var face in newIndices)
+                        {
+                            mesh.Faces.Add(new Face(face));
+                        }
                     }
                 }
 
