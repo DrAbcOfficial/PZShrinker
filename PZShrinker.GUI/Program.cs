@@ -144,12 +144,14 @@ public partial class MainForm : Form
         iconTextureCheck = new CheckBox
         {
             Text = "图标纹理",
-            ToolTip = "处理图标纹理文件"
+            ToolTip = "处理图标纹理文件",
+            Checked = true
         };
         modelTextureCheck = new CheckBox
         {
             Text = "模型纹理",
-            ToolTip = "处理模型纹理文件"
+            ToolTip = "处理模型纹理文件",
+            Checked = true
         };
         packTextureCheck = new CheckBox
         {
@@ -164,12 +166,14 @@ public partial class MainForm : Form
         fbxModelCheck = new CheckBox
         {
             Text = "FBX模型",
-            ToolTip = "处理FBX格式模型文件"
+            ToolTip = "处理FBX格式模型文件",
+            Checked = true
         };
         d3dModelCheck = new CheckBox
         {
             Text = "X模型",
-            ToolTip = "处理X格式模型文件"
+            ToolTip = "处理X格式模型文件",
+            Checked = true
         };
 
         var switcherChecks = new[]
@@ -197,27 +201,32 @@ public partial class MainForm : Form
         removeOtherUVCheck = new CheckBox
         {
             Text = "移除其他UV",
-            ToolTip = "移除模型中多余的UV通道"
+            ToolTip = "移除模型中多余的UV通道",
+            Checked = true
         };
         removeOtherTextureInfoCheck = new CheckBox
         {
             Text = "移除嵌入纹理信息",
-            ToolTip = "移除模型中嵌入的纹理信息"
+            ToolTip = "移除模型中嵌入的纹理信息",
+            Checked = true
         };
         removeTangentCheck = new CheckBox
         {
             Text = "移除切线",
-            ToolTip = "移除模型中的切线数据"
+            ToolTip = "移除模型中的切线数据",
+            Checked = true
         };
         removeColorCheck = new CheckBox
         {
             Text = "移除顶点颜色",
-            ToolTip = "移除模型中的顶点颜色数据"
+            ToolTip = "移除模型中的顶点颜色数据",
+            Checked = true
         };
         mergeAllMeshCheck = new CheckBox
         {
             Text = "合并所有网格",
-            ToolTip = "合并模型中的所有网格"
+            ToolTip = "合并模型中的所有网格",
+            Checked = true
         };
 
         var removeChecks = new[]
