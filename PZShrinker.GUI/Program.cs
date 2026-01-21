@@ -138,7 +138,7 @@ public partial class MainForm : Form
         layout.AddSeparateRow(); // 分隔线或空行
 
         // === Switcher 分组 ===
-        var switcherGroup = new GroupBox { Text = "文件类型" };
+        var switcherGroup = new GroupBox { Text = "处理的文件" };
         var switcherLayout = new TableLayout(2, 3) { Spacing = new Size(10, 5) };
 
         iconTextureCheck = new CheckBox
